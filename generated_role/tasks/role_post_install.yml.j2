@@ -1,0 +1,58 @@
+---
+# Copyright 2014, Rackspace US, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: Copy common {{ role_name }} config
+  config_template:
+    src: "{% raw %}{{ {% endraw %}item.src{% raw %} }}{% endraw %}"
+    dest: "{% raw %}{{ {% endraw %}item.dest{% raw %} }}{% endraw %}"
+    owner: "root"
+    group: "{% raw %}{{ {% endraw %}item.group|default({{ role_name }}_system_group_name){% raw %} }}{% endraw %}"
+    mode: "0640"
+    config_overrides: "{% raw %}{{ {% endraw %}item.config_overrides{% raw %} }}{% endraw %}"
+    config_type: "{% raw %}{{ {% endraw %}item.config_type{% raw %} }}{% endraw %}"
+  with_items:
+    - src: "{{ role_name }}.conf.j2"
+      dest: "{% raw %}{{ {% endraw %}{{ role_name }}_conf_dir{% raw %} }}{% endraw %}/{{ role_name }}.conf"
+      config_overrides: "{% raw %}{{ {% endraw %}{{ role_name }}_{{ role_name }}_conf_overrides{% raw %} }}{% endraw %}"
+      config_type: "ini"
+    - src: "{% raw %}{{ {% endraw %}{{ role_name }}_plugins[{{ role_name }}_plugin_type].plugin_ini{% raw %} }}{% endraw %}.j2"
+      dest: "{% raw %}{{ {% endraw %}{{ role_name }}_conf_dir{% raw %} }}{% endraw %}/{% raw %}{{ {% endraw %}{{ role_name }}_plugins[{{ role_name }}_plugin_type].plugin_ini{% raw %} }}{% endraw %}"
+      config_overrides: "{% raw %}{{ {% endraw %}{{ role_name }}_plugins[{{ role_name }}_plugin_type].plugin_conf_ini_overrides{% raw %} }}{% endraw %}"
+      config_type: "ini"
+    - src: "api-paste.ini.j2"
+      dest: "{% raw %}{{ {% endraw %}{{ role_name }}_conf_dir{% raw %} }}{% endraw %}/api-paste.ini"
+      config_overrides: "{% raw %}{{ {% endraw %}{{ role_name }}_api_paste_ini_overrides{% raw %} }}{% endraw %}"
+      config_type: "ini"
+    - src: "rootwrap.conf.j2"
+      dest: "{% raw %}{{ {% endraw %}{{ role_name }}_conf_dir{% raw %} }}{% endraw %}/rootwrap.conf"
+      config_overrides: "{% raw %}{{ {% endraw %}{{ role_name }}_rootwrap_conf_overrides{% raw %} }}{% endraw %}"
+      config_type: "ini"
+    - src: "policy.json.j2"
+      dest: "{% raw %}{{ {% endraw %}{{ role_name }}_conf_dir{% raw %} }}{% endraw %}/policy.json-{% raw %}{{ {% endraw %}{{ role_name }}_venv_tag{% raw %} }}{% endraw %}"
+      config_overrides: "{% raw %}{{ {% endraw %}{{ role_name }}_policy_overrides{% raw %} }}{% endraw %}"
+      config_type: "json"
+  notify:
+    - Restart {{ role_name }} services
+
+- name: Copy {{ role_name }} rootwrap filters
+  copy:
+    src: "{% raw %}{{ {% endraw %}item{% raw %} }}{% endraw %}"
+    dest: "{% raw %}{{ {% endraw %}{{ role_name }}_conf_dir{% raw %} }}{% endraw %}/rootwrap.d/"
+    owner: "root"
+    group: "root"
+  with_fileglob:
+    - rootwrap.d/*
+  notify:
+    - Restart {{ role_name }} services

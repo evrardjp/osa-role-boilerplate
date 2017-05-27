@@ -1,0 +1,7 @@
+- name: Installation and setup of {{ role_name }}
+  hosts: {{ role_name }}_all
+  user: root
+  roles:
+    - { role: "{{ role_name }}", tags: [ "{{ role_name }}-install", "{{ role_name }}-config" ] }
+  vars:
+    {{ role_name }}_galera_address: "{% raw %}{{ {% endraw %}internal_lb_vip_address{% raw %} }}{% endraw %}"

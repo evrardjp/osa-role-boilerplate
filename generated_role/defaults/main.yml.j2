@@ -1,0 +1,157 @@
+---
+# Copyright 2014, Rackspace US, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+###
+### Verbosity Options
+###
+
+debug: False
+
+###
+### Packages Options
+###
+
+# Set the package install state for distribution
+# Options are 'present' and 'latest'
+{{ role_name }}_package_state: "latest"
+
+###
+### Python code details
+###
+
+# Set the package install state for pip_package
+# Options are 'present' and 'latest'
+{{ role_name }}_pip_package_state: "latest"
+
+# Source git repo/branch settings
+{{ role_name }}_git_repo: https://git.openstack.org/openstack/{{ role_name }}
+{{ role_name }}_git_install_branch: master
+
+# Developer mode
+{{ role_name }}_developer_mode: false
+
+# Name of the virtual env to deploy into
+{{ role_name }}_venv_tag: untagged
+
+# venv_download, even when true, will use the fallback method of building the
+# venv from scratch if the venv download fails.
+{{ role_name }}_venv_download_url: http://127.0.0.1/venvs/untagged/ubuntu/{{ role_name }}.tgz
+
+###
+### Generic {{ role_name }} Config
+###
+
+# Fatal Deprecations
+{{ role_name }}_fatal_deprecations: False
+
+# If ``{{ role_name }}_api_workers`` is unset the system will use half the number of available VCPUs to
+# compute the number of api workers to use with a default capping value of 16.
+# {{ role_name }}_api_workers: 16
+
+## Cap the maximun number of threads / workers when a user value is unspecified.
+{{ role_name }}_api_threads_max: 16
+{{ role_name }}_api_threads: "{% raw %}{{ {% endraw %}[[ansible_processor_vcpus|default(2) // 2, 1] | max, {{ role_name }}_api_threads_max] | min{% raw %} }}{% endraw %}"
+
+###
+### Tunable Overrides (Sorted alphabetically)
+###
+
+# These variables facilitate adding config file entries
+# for anything supported by the service. See the section
+# 'Overriding OpenStack configuration defaults' in the
+# 'Advanced configuration' appendix of the Deploy Guide.
+{{ role_name }}_api_paste_ini_overrides: {}
+#{{ role_name }}_policy_overrides:
+#  "create_subnet": "rule:admin_or_network_owner"
+#  "get_subnet": "rule:admin_or_owner or rule:shared"
+{{ role_name }}_policy_overrides: {}
+{{ role_name }}_rootwrap_conf_overrides: {}
+{{ role_name }}_server_init_overrides: {}
+
+
+###
+### DB (Galera) integration
+###
+
+{{ role_name }}_galera_user: {{ role_name }}
+{{ role_name }}_galera_database: {{ role_name }}
+{{ role_name }}_db_max_overflow: 20
+{{ role_name }}_db_pool_size: 120
+{{ role_name }}_db_pool_timeout: 30
+
+###
+### RPC (RabbitMQ) integration
+###
+
+{{ role_name }}_rpc_backend: rabbit
+{{ role_name }}_rabbitmq_userid: {{ role_name }}
+{{ role_name }}_rabbitmq_vhost: /{{ role_name }}
+{{ role_name }}_rabbitmq_port: 5672
+{{ role_name }}_rabbitmq_servers: 127.0.0.1
+{{ role_name }}_rabbitmq_use_ssl: False
+{{ role_name }}_rpc_thread_pool_size: 64
+{{ role_name }}_rpc_conn_pool_size: 30
+{{ role_name }}_rpc_response_timeout: 60
+{{ role_name }}_rpc_workers: 1
+
+###
+### Identity (Keystone) integration
+###
+
+{{ role_name }}_service_project_name: service
+{{ role_name }}_service_project_domain_id: default
+{{ role_name }}_service_user_domain_id: default
+{{ role_name }}_service_role_name: admin
+{{ role_name }}_service_user_name: {{ role_name }}
+{{ role_name }}_service_name: {{ role_name }}
+{{ role_name }}_service_type: network
+{{ role_name }}_service_description: "OpenStack Networking"
+{{ role_name }}_service_port: 9696
+{{ role_name }}_service_proto: http
+{{ role_name }}_service_publicuri_proto: "{% raw %}{{ {% endraw %}openstack_service_publicuri_proto | default({{ role_name }}_service_proto){% raw %} }}{% endraw %}"
+{{ role_name }}_service_adminuri_proto: "{% raw %}{{ {% endraw %}openstack_service_adminuri_proto | default({{ role_name }}_service_proto){% raw %} }}{% endraw %}"
+{{ role_name }}_service_internaluri_proto: "{% raw %}{{ {% endraw %}openstack_service_internaluri_proto | default({{ role_name }}_service_proto){% raw %} }}{% endraw %}"
+{{ role_name }}_service_publicuri: "{% raw %}{{ {% endraw %}{{ role_name }}_service_publicuri_proto{% raw %} }}{% endraw %}://{% raw %}{{ {% endraw %}external_lb_vip_address{% raw %} }}{% endraw %}:{% raw %}{{ {% endraw %}{{ role_name }}_service_port{% raw %} }}{% endraw %}"
+{{ role_name }}_service_publicurl: "{% raw %}{{ {% endraw %}{{ role_name }}_service_publicuri{% raw %} }}{% endraw %}"
+{{ role_name }}_service_adminuri: "{% raw %}{{ {% endraw %}{{ role_name }}_service_adminuri_proto{% raw %} }}{% endraw %}://{% raw %}{{ {% endraw %}internal_lb_vip_address{% raw %} }}{% endraw %}:{% raw %}{{ {% endraw %}{{ role_name }}_service_port{% raw %} }}{% endraw %}"
+{{ role_name }}_service_adminurl: "{% raw %}{{ {% endraw %}{{ role_name }}_service_adminuri{% raw %} }}{% endraw %}"
+{{ role_name }}_service_internaluri: "{% raw %}{{ {% endraw %}{{ role_name }}_service_internaluri_proto{% raw %} }}{% endraw %}://{% raw %}{{ {% endraw %}internal_lb_vip_address{% raw %} }}{% endraw %}:{% raw %}{{ {% endraw %}{{ role_name }}_service_port{% raw %} }}{% endraw %}"
+{{ role_name }}_service_internalurl: "{% raw %}{{ {% endraw %}{{ role_name }}_service_internaluri{% raw %} }}{% endraw %}"
+{{ role_name }}_service_region: RegionOne
+{{ role_name }}_keystone_auth_plugin: "{% raw %}{{ {% endraw %}{{ role_name }}_keystone_auth_type{% raw %} }}{% endraw %}"
+{{ role_name }}_keystone_auth_type: password
+{{ role_name }}_service_in_ldap: false
+
+###
+### Telemetry integration
+###
+
+{{ role_name }}_ceilometer_enabled: False
+
+# Configuration for notifications communication, i.e. [oslo_messaging_notifications]
+{{ role_name }}_rabbitmq_telemetry_userid: "{% raw %}{{ {% endraw %}{{ role_name }}_rabbitmq_userid{% raw %} }}{% endraw %}"
+{{ role_name }}_rabbitmq_telemetry_password: "{% raw %}{{ {% endraw %}{{ role_name }}_rabbitmq_password{% raw %} }}{% endraw %}"
+{{ role_name }}_rabbitmq_telemetry_vhost: "{% raw %}{{ {% endraw %}{{ role_name }}_rabbitmq_vhost{% raw %} }}{% endraw %}"
+{{ role_name }}_rabbitmq_telemetry_port: "{% raw %}{{ {% endraw %}{{ role_name }}_rabbitmq_port{% raw %} }}{% endraw %}"
+{{ role_name }}_rabbitmq_telemetry_servers: "{% raw %}{{ {% endraw %}{{ role_name }}_rabbitmq_servers{% raw %} }}{% endraw %}"
+{{ role_name }}_rabbitmq_telemetry_use_ssl: "{% raw %}{{ {% endraw %}{{ role_name }}_rabbitmq_use_ssl{% raw %} }}{% endraw %}"
+
+###
+### Other components integration
+###
+
+###
+### Plugins Loading and Plugins configuration
+###

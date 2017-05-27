@@ -1,0 +1,78 @@
+---
+# Copyright 2014, Rackspace US, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: Get {{ role_name }} migrations facts
+  {{ role_name }}_migrations_facts:
+    release: pike
+    library_path: "{% raw %}{{ {% endraw %}{{ role_name }}_lib_dir{% raw %} }}{% endraw %}"
+    bin_path: "{% raw %}{{ {% endraw %}{{ role_name }}_bin{% raw %} }}{% endraw %}"
+  when: {{ role_name }}_plugin_type.split('.')[0] == 'ml2'
+
+- name: Print {{ role_name }} migrations facts
+  debug:
+    var: {{ role_name }}_migrations
+  when: {{ role_name }}_plugin_type.split('.')[0] == 'ml2'
+
+- name: Perform a {{ role_name }} DB online upgrade (expand)
+  command: |
+    {% raw %}{{ {% endraw %}{{ role_name }}_bin{% raw %} }}{% endraw %}/{{ role_name }}-db-manage
+                      --config-file {% raw %}{{ {% endraw %}{{ role_name }}_db_config{% raw %} }}{% endraw %}
+                      --config-file {% raw %}{{ {% endraw %}{{ role_name }}_db_plugin{% raw %} }}{% endraw %}
+                      upgrade --expand
+  become: yes
+  become_user: "{% raw %}{{ {% endraw %}{{ role_name }}_system_user_name{% raw %} }}{% endraw %}"
+  when:
+    - ({{ role_name }}_migrations is defined and {{ role_name }}_migrations['run_expand']|bool)
+    - {{ role_name }}_plugin_type.split('.')[0] == 'ml2'
+
+- name: Stop {{ role_name }} server
+  service:
+    name: "{{ role_name }}-server"
+    state: stopped
+  delegate_to: "{% raw %}{{ {% endraw %}item{% raw %} }}{% endraw %}"
+  with_items: "{% raw %}{{ {% endraw %}groups[{{ role_name }}_services['{{ role_name }}-server']['group']]{% raw %} }}{% endraw %}"
+  when: ({{ role_name }}_migrations is defined and {{ role_name }}_migrations['run_contract']|bool) or {{ role_name }}_plugin_type.split('.')[0] != 'ml2'
+
+- name: Perform a {{ role_name }} DB offline upgrade (contract)
+  command: |
+    {% raw %}{{ {% endraw %}{{ role_name }}_bin{% raw %} }}{% endraw %}/{{ role_name }}-db-manage
+                      --config-file {% raw %}{{ {% endraw %}{{ role_name }}_db_config{% raw %} }}{% endraw %}
+                      --config-file {% raw %}{{ {% endraw %}{{ role_name }}_db_plugin{% raw %} }}{% endraw %}
+                      upgrade --contract
+  become: yes
+  become_user: "{% raw %}{{ {% endraw %}{{ role_name }}_system_user_name{% raw %} }}{% endraw %}"
+  when:
+    - ({{ role_name }}_migrations is defined and {{ role_name }}_migrations['run_contract']|bool)
+    - {{ role_name }}_plugin_type.split('.')[0] == 'ml2'
+
+# NOTE: We have to handle {{ role_name }}_plugin_type.split('.')[0] != 'ml2' because not all {{ role_name }}
+#       plugins have contract/expand branches which breaks {{ role_name }}-db-manage.
+#       This can be reverted once all plugins are conformant.
+- name: Perform a {{ role_name }} DB offline upgrade (heads)
+  command: |
+    {% raw %}{{ {% endraw %}{{ role_name }}_bin{% raw %} }}{% endraw %}/{{ role_name }}-db-manage
+                      --config-file {% raw %}{{ {% endraw %}{{ role_name }}_db_config{% raw %} }}{% endraw %}
+                      --config-file {% raw %}{{ {% endraw %}{{ role_name }}_db_plugin{% raw %} }}{% endraw %}
+                      upgrade heads
+  become: yes
+  become_user: "{% raw %}{{ {% endraw %}{{ role_name }}_system_user_name{% raw %} }}{% endraw %}"
+
+- name: Start {{ role_name }} server
+  service:
+    name: "{{ role_name }}-server"
+    state: started
+  delegate_to: "{% raw %}{{ {% endraw %}item{% raw %} }}{% endraw %}"
+  with_items: "{% raw %}{{ {% endraw %}groups[{{ role_name }}_services['{{ role_name }}-server']['group']]{% raw %} }}{% endraw %}"
+  when: ({{ role_name }}_migrations is defined and {{ role_name }}_migrations['run_contract']|bool)

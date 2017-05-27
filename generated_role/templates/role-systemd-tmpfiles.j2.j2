@@ -1,0 +1,5 @@
+# {% raw %}{{ {% endraw %}ansible_managed{% raw %} }}{% endraw %}
+
+D /var/lock/{% raw %}{{ {% endraw %}item.value.program_binary | default(item.value.service_name){% raw %} }}{% endraw %} 2755 {% raw %}{{ {% endraw %}item.value.system_user | default({{ role_name }}_system_user_name){% raw %} }}{% endraw %} {% raw %}{{ {% endraw %}item.value.system_group | default({{ role_name }}_system_group_name){% raw %} }}{% endraw %}
+D /var/run/{% raw %}{{ {% endraw %}item.value.program_binary | default(item.value.service_name){% raw %} }}{% endraw %} 2755 {% raw %}{{ {% endraw %}item.value.system_user | default({{ role_name }}_system_user_name){% raw %} }}{% endraw %} {% raw %}{{ {% endraw %}item.value.system_group | default({{ role_name }}_system_group_name){% raw %} }}{% endraw %}
+D {% raw %}{{ {% endraw %}{{ role_name }}_lock_path{% raw %} }}{% endraw %} 2755 {% raw %}{{ {% endraw %}item.value.system_user | default({{ role_name }}_system_user_name){% raw %} }}{% endraw %} {% raw %}{{ {% endraw %}item.value.system_group | default({{ role_name }}_system_group_name){% raw %} }}{% endraw %}

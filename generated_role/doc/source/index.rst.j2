@@ -1,0 +1,42 @@
+==================================
+{{ role_name }} role for OpenStack-Ansible
+==================================
+
+.. toctree::
+   :maxdepth: 2
+
+:tags: openstack, {{ role_name }}, cloud, ansible
+:category: \*nix
+
+This role installs the following Systemd services:
+
+  * {{ role_name }}-server
+
+To clone or view the source code for this repository, visit the role repository
+for `{{ role_name }} <https://github.com/openstack/openstack-ansible-{{ role_name }}>`_.
+
+Default variables
+~~~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../../defaults/main.yml
+   :language: yaml
+   :start-after: under the License.
+
+Required variables
+~~~~~~~~~~~~~~~~~~
+
+None.
+
+Example playbook
+~~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../../examples/playbook.yml
+   :language: yaml
+
+Tags
+~~~~
+
+This role supports two tags: ``{{ role_name }}-install`` and
+``{{ role_name }}-config``. The ``{{ role_name }}-install`` tag can be used to install
+and upgrade. The ``{{ role_name }}-config`` tag can be used to maintain the
+configuration of the service.

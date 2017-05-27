@@ -1,0 +1,148 @@
+---
+# Copyright 2014, Rackspace US, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: Install {{ role_name }} role packages
+  package:
+    name: "{% raw %}{{ {% endraw %}{{ role_name }}_packages_list{% raw %} }}{% endraw %}"
+    state: "{% raw %}{{ {% endraw %}{{ role_name }}_package_state{% raw %} }}{% endraw %}"
+    update_cache: "{% raw %}{{ {% endraw %}(ansible_pkg_mgr == 'apt') | ternary('yes', omit){% raw %} }}{% endraw %}"
+    cache_valid_time: "{% raw %}{{ {% endraw %}(ansible_pkg_mgr == 'apt') | ternary(cache_timeout, omit){% raw %} }}{% endraw %}"
+
+- name: Remove known problem packages
+  package:
+    name: "{% raw %}{{ {% endraw %}{{ role_name }}_remove_distro_packages{% raw %} }}{% endraw %}"
+    state: absent
+  register: remove_packages
+  until: remove_packages|success
+  retries: 5
+  delay: 2
+
+- name: Create developer mode constraint file
+  copy:
+    dest: "/opt/developer-pip-constraints.txt"
+    content: |
+      {% raw{% raw %} %}{% endraw %}{% {% endraw{% raw %} %}{% endraw %}for item in {{ role_name }}_developer_constraints{% raw %} %}{% endraw %}
+      {% raw %}{{ {% endraw %}item{% raw %} }}{% endraw %}
+      {% raw{% raw %} %}{% endraw %}{% {% endraw{% raw %} %}{% endraw %}endfor{% raw %} %}{% endraw %}
+  when: {{ role_name }}_developer_mode | bool
+
+- name: Install requires pip packages
+  pip:
+    name: "{% raw %}{{ {% endraw %}{{ role_name }}_requires_pip_packages{% raw %} }}{% endraw %}"
+    state: "{% raw %}{{ {% endraw %}{{ role_name }}_pip_package_state{% raw %} }}{% endraw %}"
+    extra_args: >-
+      {% raw %}{{ {% endraw %}{{ role_name }}_developer_mode | ternary(pip_install_developer_constraints | default('--constraint /opt/developer-pip-constraints.txt'), ''){% raw %} }}{% endraw %}
+      {% raw %}{{ {% endraw %}(pip_install_upper_constraints is defined) | ternary('--constraint ' + pip_install_upper_constraints | default(''),''){% raw %} }}{% endraw %}
+      {% raw %}{{ {% endraw %}pip_install_options | default(''){% raw %} }}{% endraw %}
+  register: install_packages
+  until: install_packages|success
+  retries: 5
+  delay: 2
+
+- name: Retrieve checksum for venv download
+  uri:
+    url: "{% raw %}{{ {% endraw %}{{ role_name }}_venv_download_url | replace('tgz', 'checksum'){% raw %} }}{% endraw %}"
+    return_content: yes
+  register: {{ role_name }}_venv_checksum
+  when: {{ role_name }}_venv_download | bool
+
+- name: Attempt venv download
+  get_url:
+    url: "{% raw %}{{ {% endraw %}{{ role_name }}_venv_download_url{% raw %} }}{% endraw %}"
+    dest: "/var/cache/{% raw %}{{ {% endraw %}{{ role_name }}_venv_download_url | basename{% raw %} }}{% endraw %}"
+    checksum: "sha1:{% raw %}{{ {% endraw %}{{ role_name }}_venv_checksum.content | trim{% raw %} }}{% endraw %}"
+  register: {{ role_name }}_get_venv
+  when: {{ role_name }}_venv_download | bool
+
+- name: Remove existing venv
+  file:
+    path: "{% raw %}{{ {% endraw %}{{ role_name }}_bin | dirname{% raw %} }}{% endraw %}"
+    state: absent
+  when: {{ role_name }}_get_venv | changed
+
+- name: Create {{ role_name }} venv dir
+  file:
+    path: "{% raw %}{{ {% endraw %}{{ role_name }}_bin | dirname{% raw %} }}{% endraw %}"
+    state: directory
+  when: {{ role_name }}_get_venv | changed
+
+- name: Unarchive pre-built venv
+  unarchive:
+    src: "/var/cache/{% raw %}{{ {% endraw %}{{ role_name }}_venv_download_url | basename{% raw %} }}{% endraw %}"
+    dest: "{% raw %}{{ {% endraw %}{{ role_name }}_bin | dirname{% raw %} }}{% endraw %}"
+    copy: "no"
+  when: {{ role_name }}_get_venv | changed
+  notify: Restart {{ role_name }} services
+
+- name: Install pip packages
+  pip:
+    name: "{% raw %}{{ {% endraw %}{{ role_name }}_pip_packages{% raw %} }}{% endraw %}"
+    state: "{% raw %}{{ {% endraw %}{{ role_name }}_pip_package_state{% raw %} }}{% endraw %}"
+    virtualenv: "{% raw %}{{ {% endraw %}{{ role_name }}_bin | dirname{% raw %} }}{% endraw %}"
+    virtualenv_site_packages: "no"
+    extra_args: >-
+      {% raw %}{{ {% endraw %}{{ role_name }}_developer_mode | ternary(pip_install_developer_constraints | default('--constraint /opt/developer-pip-constraints.txt'), ''){% raw %} }}{% endraw %}
+      {% raw %}{{ {% endraw %}(pip_install_upper_constraints is defined) | ternary('--constraint ' + pip_install_upper_constraints | default(''),''){% raw %} }}{% endraw %}
+      {% raw %}{{ {% endraw %}pip_install_options | default(''){% raw %} }}{% endraw %}
+  register: install_packages
+  until: install_packages|success
+  retries: 5
+  delay: 2
+  when: {{ role_name }}_get_venv | failed or {{ role_name }}_get_venv | skipped
+  notify: Restart {{ role_name }} services
+
+- name: CentOS remove python from path first
+  file:
+    path:  "{% raw %}{{ {% endraw %}{{ role_name }}_bin | dirname{% raw %} }}{% endraw %}/bin/python2.7"
+    state: "absent"
+  when:
+    - ansible_pkg_mgr == 'yum'
+    - {{ role_name }}_get_venv | changed
+
+- name: Update virtualenv path
+  command: >
+    virtualenv-tools --update-path=auto --reinitialize {% raw %}{{ {% endraw %}{{ role_name }}_bin | dirname{% raw %} }}{% endraw %}
+  when: {{ role_name }}_get_venv | changed
+
+- name: Install optional pip packages
+  pip:
+    name: >-
+      {% raw %}{{ {% endraw %}({{ role_name }}_bgp | bool) | ternary({{ role_name }}_optional_bgp_pip_packages, []) +
+         ({{ role_name }}_fwaas | bool) | ternary({{ role_name }}_optional_fwaas_pip_packages, []) +
+         ({{ role_name }}_lbaasv2 | bool) | ternary({{ role_name }}_optional_lbaas_pip_packages, []) +
+         ({{ role_name }}_vpnaas | bool) | ternary({{ role_name }}_optional_vpnaas_pip_packages, []){% raw %} }}{% endraw %}
+    state: "{% raw %}{{ {% endraw %}{{ role_name }}_pip_package_state{% raw %} }}{% endraw %}"
+    virtualenv: "{% raw %}{{ {% endraw %}{{ role_name }}_bin | dirname{% raw %} }}{% endraw %}"
+    virtualenv_site_packages: "no"
+    extra_args: >-
+      {% raw %}{{ {% endraw %}{{ role_name }}_developer_mode | ternary(pip_install_developer_constraints | default('--constraint /opt/developer-pip-constraints.txt'), ''){% raw %} }}{% endraw %}
+      {% raw %}{{ {% endraw %}(pip_install_upper_constraints is defined) | ternary('--constraint ' + pip_install_upper_constraints | default(''),''){% raw %} }}{% endraw %}
+      {% raw %}{{ {% endraw %}pip_install_options | default(''){% raw %} }}{% endraw %}
+  when: {{ role_name }}_bgp | bool or
+        {{ role_name }}_fwaas | bool or
+        {{ role_name }}_lbaasv2 | bool or
+        {{ role_name }}_vpnaas | bool
+  register: install_packages
+  until: install_packages|success
+  retries: 5
+  delay: 2
+  notify: Restart {{ role_name }} services
+
+- name: Record the venv tag deployed
+  ini_file:
+    dest: "/etc/ansible/facts.d/openstack_ansible.fact"
+    section: {{ role_name }}
+    option: venv_tag
+    value: "{% raw %}{{ {% endraw %}{{ role_name }}_venv_tag{% raw %} }}{% endraw %}"

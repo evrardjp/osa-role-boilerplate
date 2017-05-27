@@ -1,0 +1,110 @@
+---
+# Copyright 2017, Rackspace US, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+###
+### Packages
+###
+
+{{ role_name }}_packages_list: []
+
+###
+### Python code details
+###
+
+{{ role_name }}_requires_pip_packages:
+  - virtualenv
+  - virtualenv-tools
+  - python-keystoneclient # Keystoneclient needed to OSA keystone lib
+  - httplib2
+
+{{ role_name }}_pip_packages: []
+
+{{ role_name }}_developer_constraints:
+  - "git+{% raw %}{{ {% endraw %}{{ role_name }}_git_repo{% raw %} }}{% endraw %}@{% raw %}{{ {% endraw %}{{ role_name }}_git_install_branch{% raw %} }}{% endraw %}#egg={{ role_name }}"
+  - "git+{% raw %}{{ {% endraw %}{{ role_name }}_fwaas_git_repo{% raw %} }}{% endraw %}@{% raw %}{{ {% endraw %}{{ role_name }}_fwaas_git_install_branch{% raw %} }}{% endraw %}#egg={{ role_name }}-fwaas"
+  - "git+{% raw %}{{ {% endraw %}{{ role_name }}_lbaas_git_repo{% raw %} }}{% endraw %}@{% raw %}{{ {% endraw %}{{ role_name }}_lbaas_git_install_branch{% raw %} }}{% endraw %}#egg={{ role_name }}-lbaas"
+  - "git+{% raw %}{{ {% endraw %}{{ role_name }}_vpnaas_git_repo{% raw %} }}{% endraw %}@{% raw %}{{ {% endraw %}{{ role_name }}_vpnaas_git_install_branch{% raw %} }}{% endraw %}#egg={{ role_name }}-vpnaas"
+  - "git+{% raw %}{{ {% endraw %}{{ role_name }}_dynamic_routing_git_repo{% raw %} }}{% endraw %}@{% raw %}{{ {% endraw %}{{ role_name }}_dynamic_routing_git_install_branch{% raw %} }}{% endraw %}#egg={{ role_name }}-dynamic-routing"
+  - "git+{% raw %}{{ {% endraw %}calico_git_repo{% raw %} }}{% endraw %}@{% raw %}{{ {% endraw %}calico_git_install_branch{% raw %} }}{% endraw %}#egg=felix"
+  - "git+{% raw %}{{ {% endraw %}networking_calico_git_repo{% raw %} }}{% endraw %}@{% raw %}{{ {% endraw %}networking_calico_git_install_branch{% raw %} }}{% endraw %}#egg=networking-calico"
+  - "git+{% raw %}{{ {% endraw %}dragonflow_git_repo{% raw %} }}{% endraw %}@{% raw %}{{ {% endraw %}dragonflow_git_install_branch{% raw %} }}{% endraw %}#egg=dragonflow"
+
+{{ role_name }}_bin: "/openstack/venvs/{{ role_name }}-{% raw %}{{ {% endraw %}{{ role_name }}_venv_tag{% raw %} }}{% endraw %}/bin"
+
+{{ role_name }}_venv_download: "{% raw %}{{ {% endraw %}not {{ role_name }}_developer_mode | bool{% raw %} }}{% endraw %}"
+
+{{ role_name }}_lib_dir: "{% raw %}{{ {% endraw %}{{ role_name }}_bin | dirname{% raw %} }}{% endraw %}/lib/python2.7/site-packages/"
+
+###
+### Generic {{ role_name }} Config
+###
+
+{{ role_name }}_conf_dir: /etc/{{ role_name }}
+{{ role_name }}_lock_path: "/var/lock/{{ role_name }}"
+{{ role_name }}_system_user_name: {{ role_name }}
+{{ role_name }}_system_group_name: {{ role_name }}
+{{ role_name }}_system_comment: {{ role_name }} system user
+{{ role_name }}_system_shell: /bin/false
+{{ role_name }}_system_home_folder: "/var/lib/{% raw %}{{ {% endraw %}{{ role_name }}_system_user_name{% raw %} }}{% endraw %}"
+
+###
+### DB (Galera) integration
+###
+
+{{ role_name }}_db_config: "{% raw %}{{ {% endraw %}{{ role_name }}_conf_dir{% raw %} }}{% endraw %}/{{ role_name }}.conf"
+{{ role_name }}_db_plugin: "{% raw %}{{ {% endraw %}{{ role_name }}_conf_dir{% raw %} }}{% endraw %}/{% raw %}{{ {% endraw %}{{ role_name }}_plugins[{{ role_name }}_plugin_type].plugin_ini{% raw %} }}{% endraw %}"
+
+###
+### Telemetry integration
+###
+
+# Please add 'metering' to the {{ role_name }}_plugin_base list
+#TODO(odyssey4me): Remove the class path from this conditional in the Newton cycle
+{{ role_name }}_metering: "{% raw{% raw %} %}{% endraw %}{% {% endraw{% raw %} %}{% endraw %}if 'metering' in {{ role_name }}_plugin_base or '{{ role_name }}.services.metering.metering_plugin.MeteringPlugin' in {{ role_name }}_plugin_base{% raw %} %}{% endraw %}True{% raw{% raw %} %}{% endraw %}{% {% endraw{% raw %} %}{% endraw %}else{% raw %} %}{% endraw %}False{% raw{% raw %} %}{% endraw %}{% {% endraw{% raw %} %}{% endraw %}endif{% raw %} %}{% endraw %}"
+
+###
+### {{ role_name }} Plugins
+###
+
+{{ role_name }}_plugins: {}
+
+###
+### Services info
+###
+
+filtered_{{ role_name }}_services: []
+
+###
+### Internals: {{ role_name }}_services mappings
+###
+
+{{ role_name }}_services: {}
+
+###
+### Internals: Drivers mappings
+###
+
+{{ role_name }}_driver_metering: {{ role_name }}.services.metering.drivers.iptables.iptables_driver.IptablesMeteringDriver
+{{ role_name }}_driver_quota: {{ role_name }}.db.quota.driver.DbQuotaDriver
+
+###
+### Internals: py_pkgs
+###
+
+# This variable is used by the repo_build process to determine
+# which host group to check for members of before building the
+# pip packages required by this role. The value is picked up
+# by the py_pkgs lookup.
+{{ role_name }}_role_project_group: {{ role_name }}_all

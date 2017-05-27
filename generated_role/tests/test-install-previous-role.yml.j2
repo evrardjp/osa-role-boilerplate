@@ -1,0 +1,95 @@
+---
+# Copyright 2016, Rackspace US, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- include: common/setting-nodepool-variables.yml
+
+- name: Make /lib/modules accessible on {{ role_name }}_agent containers
+  hosts: {{ role_name }}_agent
+  user: root
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Use the unconfined aa profile
+      lxc_container:
+        name: "{% raw %}{{ {% endraw %}container_name{% raw %} }}{% endraw %}"
+        container_config:
+          - "lxc.aa_profile=unconfined"
+      delegate_to: "{% raw %}{{ {% endraw %}physical_host{% raw %} }}{% endraw %}"
+
+    - name: Set mount path for kernel modules (Ubuntu)
+      set_fact:
+        kernel_module_path: "lib/modules"
+      when: ansible_pkg_mgr == 'apt'
+
+    - name: Set mount path for kernel modules (CentOS)
+      set_fact:
+        kernel_module_path: "usr/lib/modules"
+      when: ansible_pkg_mgr == 'yum'
+
+    - name: {{ role_name }} extra lxc config
+      lxc_container:
+        name: "{% raw %}{{ {% endraw %}container_name{% raw %} }}{% endraw %}"
+        container_command: |
+          [[ ! -d "/{% raw %}{{ {% endraw %}kernel_module_path{% raw %} }}{% endraw %}" ]] && mkdir -p "/{% raw %}{{ {% endraw %}kernel_module_path{% raw %} }}{% endraw %}"
+        container_config:
+          - "lxc.cgroup.devices.allow=a *:* rmw"
+          - "lxc.mount.entry=/{% raw %}{{ {% endraw %}kernel_module_path{% raw %} }}{% endraw %} {% raw %}{{ {% endraw %}kernel_module_path{% raw %} }}{% endraw %} none bind 0 0"
+      delegate_to: "{% raw %}{{ {% endraw %}physical_host{% raw %} }}{% endraw %}"
+
+    - name: Wait for ssh to be available
+      local_action:
+        module: wait_for
+        port: "{% raw %}{{ {% endraw %}ansible_port | default('22'){% raw %} }}{% endraw %}"
+        host: "{% raw %}{{ {% endraw %}ansible_host | default(inventory_hostname){% raw %} }}{% endraw %}"
+        search_regex: OpenSSH
+        delay: 1
+
+    - name: Add iptables rule for communication w/ metadata agent
+      command: /sbin/iptables -t mangle -A POSTROUTING -p tcp --sport 80 -j CHECKSUM --checksum-fill
+
+- name: Deploy {{ role_name }}
+  hosts: {{ role_name }}_all
+  user: root
+  gather_facts: true
+  pre_tasks:
+    # NOTE: These are typically installed in the repo server where we build the
+    #       {{ role_name }} wheel
+    - name: Install packages required to build {{ role_name }} python package (Ubuntu)
+      apt:
+        name: "{% raw %}{{ {% endraw %}item{% raw %} }}{% endraw %}"
+      with_items:
+        - libffi-dev
+      when:
+        - inventory_hostname in groups['{{ role_name }}_all']
+        - ansible_pkg_mgr == 'apt'
+    - name: Install packages required to build {{ role_name }} python package (CentOS)
+      yum:
+        name: "{% raw %}{{ {% endraw %}item{% raw %} }}{% endraw %}"
+      with_items:
+        - libffi-devel
+      when:
+        - inventory_hostname in groups['{{ role_name }}_all']
+        - ansible_pkg_mgr == 'yum'
+    - include: common/ensure-rabbitmq.yml
+      vhost_name: "{% raw %}{{ {% endraw %}{{ role_name }}_rabbitmq_vhost{% raw %} }}{% endraw %}"
+      user_name: "{% raw %}{{ {% endraw %}{{ role_name }}_rabbitmq_userid{% raw %} }}{% endraw %}"
+      user_password: "{% raw %}{{ {% endraw %}{{ role_name }}_rabbitmq_password{% raw %} }}{% endraw %}"
+    - include: common/create-grant-db.yml
+      db_name: "{% raw %}{{ {% endraw %}{{ role_name }}_galera_database{% raw %} }}{% endraw %}"
+      db_password: "{% raw %}{{ {% endraw %}{{ role_name }}_container_mysql_password{% raw %} }}{% endraw %}"
+  roles:
+    - role: "os_previous_{{ role_name }}"
+  vars_files:
+    - common/previous/test-vars.yml

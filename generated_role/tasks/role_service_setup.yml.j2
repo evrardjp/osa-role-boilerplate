@@ -1,0 +1,91 @@
+---
+# Copyright 2014, Rackspace US, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Create a service
+- name: Ensure {{ role_name }} service
+  keystone:
+    command: "ensure_service"
+    endpoint: "{% raw %}{{ {% endraw %}keystone_service_adminurl{% raw %} }}{% endraw %}"
+    login_user: "{% raw %}{{ {% endraw %}keystone_admin_user_name{% raw %} }}{% endraw %}"
+    login_password: "{% raw %}{{ {% endraw %}keystone_auth_admin_password{% raw %} }}{% endraw %}"
+    login_project_name: "{% raw %}{{ {% endraw %}keystone_admin_tenant_name{% raw %} }}{% endraw %}"
+    service_name: "{% raw %}{{ {% endraw %}{{ role_name }}_service_name{% raw %} }}{% endraw %}"
+    service_type: "{% raw %}{{ {% endraw %}{{ role_name }}_service_type{% raw %} }}{% endraw %}"
+    description: "{% raw %}{{ {% endraw %}{{ role_name }}_service_description{% raw %} }}{% endraw %}"
+    insecure: "{% raw %}{{ {% endraw %}keystone_service_adminuri_insecure{% raw %} }}{% endraw %}"
+  register: add_service
+  until: add_service|success
+  retries: 5
+  delay: 2
+
+# Create an admin user
+- name: Ensure {{ role_name }} user
+  keystone:
+    command: "ensure_user"
+    endpoint: "{% raw %}{{ {% endraw %}keystone_service_adminurl{% raw %} }}{% endraw %}"
+    login_user: "{% raw %}{{ {% endraw %}keystone_admin_user_name{% raw %} }}{% endraw %}"
+    login_password: "{% raw %}{{ {% endraw %}keystone_auth_admin_password{% raw %} }}{% endraw %}"
+    login_project_name: "{% raw %}{{ {% endraw %}keystone_admin_tenant_name{% raw %} }}{% endraw %}"
+    user_name: "{% raw %}{{ {% endraw %}{{ role_name }}_service_user_name{% raw %} }}{% endraw %}"
+    tenant_name: "{% raw %}{{ {% endraw %}{{ role_name }}_service_project_name{% raw %} }}{% endraw %}"
+    password: "{% raw %}{{ {% endraw %}{{ role_name }}_service_password{% raw %} }}{% endraw %}"
+    insecure: "{% raw %}{{ {% endraw %}keystone_service_adminuri_insecure{% raw %} }}{% endraw %}"
+  register: add_service
+  when: not {{ role_name }}_service_in_ldap | bool
+  until: add_service|success
+  retries: 5
+  delay: 10
+
+# Add a role to the user
+- name: Ensure {{ role_name }} user to admin role
+  keystone:
+    command: "ensure_user_role"
+    endpoint: "{% raw %}{{ {% endraw %}keystone_service_adminurl{% raw %} }}{% endraw %}"
+    login_user: "{% raw %}{{ {% endraw %}keystone_admin_user_name{% raw %} }}{% endraw %}"
+    login_password: "{% raw %}{{ {% endraw %}keystone_auth_admin_password{% raw %} }}{% endraw %}"
+    login_project_name: "{% raw %}{{ {% endraw %}keystone_admin_tenant_name{% raw %} }}{% endraw %}"
+    user_name: "{% raw %}{{ {% endraw %}{{ role_name }}_service_user_name{% raw %} }}{% endraw %}"
+    tenant_name: "{% raw %}{{ {% endraw %}{{ role_name }}_service_project_name{% raw %} }}{% endraw %}"
+    role_name: "{% raw %}{{ {% endraw %}{{ role_name }}_service_role_name{% raw %} }}{% endraw %}"
+    insecure: "{% raw %}{{ {% endraw %}keystone_service_adminuri_insecure{% raw %} }}{% endraw %}"
+  register: add_service
+  when: not {{ role_name }}_service_in_ldap | bool
+  until: add_service|success
+  retries: 5
+  delay: 10
+
+# Create an endpoint
+- name: Ensure {{ role_name }} endpoint
+  keystone:
+    command: "ensure_endpoint"
+    endpoint: "{% raw %}{{ {% endraw %}keystone_service_adminurl{% raw %} }}{% endraw %}"
+    login_user: "{% raw %}{{ {% endraw %}keystone_admin_user_name{% raw %} }}{% endraw %}"
+    login_password: "{% raw %}{{ {% endraw %}keystone_auth_admin_password{% raw %} }}{% endraw %}"
+    login_project_name: "{% raw %}{{ {% endraw %}keystone_admin_tenant_name{% raw %} }}{% endraw %}"
+    region_name: "{% raw %}{{ {% endraw %}{{ role_name }}_service_region{% raw %} }}{% endraw %}"
+    service_name: "{% raw %}{{ {% endraw %}{{ role_name }}_service_name{% raw %} }}{% endraw %}"
+    service_type: "{% raw %}{{ {% endraw %}{{ role_name }}_service_type{% raw %} }}{% endraw %}"
+    insecure: "{% raw %}{{ {% endraw %}keystone_service_adminuri_insecure{% raw %} }}{% endraw %}"
+    endpoint_list:
+      - url: "{% raw %}{{ {% endraw %}{{ role_name }}_service_publicurl{% raw %} }}{% endraw %}"
+        interface: "public"
+      - url: "{% raw %}{{ {% endraw %}{{ role_name }}_service_internalurl{% raw %} }}{% endraw %}"
+        interface: "internal"
+      - url: "{% raw %}{{ {% endraw %}{{ role_name }}_service_adminurl{% raw %} }}{% endraw %}"
+        interface: "admin"
+  register: add_service
+  until: add_service|success
+  retries: 5
+  delay: 10

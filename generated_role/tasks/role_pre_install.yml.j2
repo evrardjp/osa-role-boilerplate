@@ -1,0 +1,81 @@
+---
+# Copyright 2014, Rackspace US, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: Create the system group
+  group:
+    name: "{% raw %}{{ {% endraw %}{{ role_name }}_system_group_name{% raw %} }}{% endraw %}"
+    state: "present"
+    system: "yes"
+
+- name: Create the {{ role_name }} system user
+  user:
+    name: "{% raw %}{{ {% endraw %}{{ role_name }}_system_user_name{% raw %} }}{% endraw %}"
+    group: "{% raw %}{{ {% endraw %}{{ role_name }}_system_group_name{% raw %} }}{% endraw %}"
+    comment: "{% raw %}{{ {% endraw %}{{ role_name }}_system_comment{% raw %} }}{% endraw %}"
+    shell: "{% raw %}{{ {% endraw %}{{ role_name }}_system_shell{% raw %} }}{% endraw %}"
+    system: "yes"
+    createhome: "yes"
+    home: "/var/lib/{% raw %}{{ {% endraw %}{{ role_name }}_system_user_name{% raw %} }}{% endraw %}"
+
+- name: Create {{ role_name }} dir
+  file:
+    path: "{% raw %}{{ {% endraw %}item.path{% raw %} }}{% endraw %}"
+    state: directory
+    owner: "{% raw %}{{ {% endraw %}item.owner|default({{ role_name }}_system_user_name){% raw %} }}{% endraw %}"
+    group: "{% raw %}{{ {% endraw %}item.group|default({{ role_name }}_system_group_name){% raw %} }}{% endraw %}"
+    mode: "{% raw %}{{ {% endraw %}item.mode | default(omit){% raw %} }}{% endraw %}"
+  with_items:
+    - { path: "/openstack", owner: "root", group: "root" }
+    - { path: "{% raw %}{{ {% endraw %}{{ role_name }}_conf_dir{% raw %} }}{% endraw %}", mode: "0750" }
+    - { path: "{% raw %}{{ {% endraw %}{{ role_name }}_conf_dir{% raw %} }}{% endraw %}/plugins", mode: "0750" }
+    - { path: "{% raw %}{{ {% endraw %}{{ role_name }}_conf_dir{% raw %} }}{% endraw %}/plugins/{% raw %}{{ {% endraw %}{{ role_name }}_plugin_type.split('.')[0]{% raw %} }}{% endraw %}", mode: "0750" }
+    - { path: "{% raw %}{{ {% endraw %}{{ role_name }}_conf_dir{% raw %} }}{% endraw %}/rootwrap.d", owner: "root", group: "root" }
+    - { path: "/etc/sudoers.d", mode: "0750", owner: "root", group: "root" }
+    - { path: "/var/cache/{{ role_name }}" }
+    - { path: "{% raw %}{{ {% endraw %}{{ role_name }}_lock_path{% raw %} }}{% endraw %}" }
+    - { path: "/var/run/{{ role_name }}" }
+    - { path: "{% raw %}{{ {% endraw %}{{ role_name }}_system_home_folder{% raw %} }}{% endraw %}", mode: "0755" }
+    - { path: "{% raw %}{{ {% endraw %}{{ role_name }}_system_home_folder{% raw %} }}{% endraw %}/ha_confs" }
+
+- name: Test for log directory or link
+  shell: |
+    if [ -h "/var/log/{{ role_name }}"  ]; then
+      chown -h {% raw %}{{ {% endraw %}{{ role_name }}_system_user_name{% raw %} }}{% endraw %}:{% raw %}{{ {% endraw %}{{ role_name }}_system_group_name{% raw %} }}{% endraw %} "/var/log/{{ role_name }}"
+      chown -R {% raw %}{{ {% endraw %}{{ role_name }}_system_user_name{% raw %} }}{% endraw %}:{% raw %}{{ {% endraw %}{{ role_name }}_system_group_name{% raw %} }}{% endraw %} "$(readlink /var/log/{{ role_name }})"
+    else
+      exit 1
+    fi
+  register: log_dir
+  failed_when: false
+  changed_when: log_dir.rc != 0
+
+- name: Create {{ role_name }} log dir
+  file:
+    path: "{% raw %}{{ {% endraw %}item.path{% raw %} }}{% endraw %}"
+    state: directory
+    owner: "{% raw %}{{ {% endraw %}item.owner|default({{ role_name }}_system_user_name){% raw %} }}{% endraw %}"
+    group: "{% raw %}{{ {% endraw %}item.group|default({{ role_name }}_system_group_name){% raw %} }}{% endraw %}"
+    mode: "{% raw %}{{ {% endraw %}item.mode|default('0755'){% raw %} }}{% endraw %}"
+  with_items:
+    - { path: "/var/log/{{ role_name }}" }
+  when: log_dir.rc != 0
+
+- name: Drop sudoers file
+  template:
+    src: "sudoers.j2"
+    dest: "/etc/sudoers.d/{% raw %}{{ {% endraw %}{{ role_name }}_system_user_name{% raw %} }}{% endraw %}_sudoers"
+    mode: "0440"
+    owner: "root"
+    group: "root"

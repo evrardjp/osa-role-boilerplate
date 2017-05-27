@@ -1,0 +1,45 @@
+[composite:{{ role_name }}]
+use = egg:Paste#urlmap
+/: {{ role_name }}versions_composite
+/v2.0: {{ role_name }}api_v2_0
+
+[composite:{{ role_name }}api_v2_0]
+use = call:{{ role_name }}.auth:pipeline_factory
+noauth = cors http_proxy_to_wsgi request_id catch_errors extensions {{ role_name }}apiapp_v2_0
+keystone = cors http_proxy_to_wsgi request_id catch_errors authtoken keystonecontext extensions {{ role_name }}apiapp_v2_0
+
+[composite:{{ role_name }}versions_composite]
+use = call:{{ role_name }}.auth:pipeline_factory
+noauth = cors http_proxy_to_wsgi {{ role_name }}versions
+keystone = cors http_proxy_to_wsgi {{ role_name }}versions
+
+[filter:request_id]
+paste.filter_factory = oslo_middleware:RequestId.factory
+
+[filter:catch_errors]
+paste.filter_factory = oslo_middleware:CatchErrors.factory
+
+[filter:cors]
+paste.filter_factory = oslo_middleware.cors:filter_factory
+oslo_config_project = {{ role_name }}
+
+[filter:http_proxy_to_wsgi]
+paste.filter_factory = oslo_middleware.http_proxy_to_wsgi:HTTPProxyToWSGI.factory
+
+[filter:keystonecontext]
+paste.filter_factory = {{ role_name }}.auth:{{ role_name }}KeystoneContext.factory
+
+[filter:authtoken]
+paste.filter_factory = keystonemiddleware.auth_token:filter_factory
+
+[filter:extensions]
+paste.filter_factory = {{ role_name }}.api.extensions:plugin_aware_extension_middleware_factory
+
+[app:{{ role_name }}versions]
+paste.app_factory = {{ role_name }}.api.versions:Versions.factory
+
+[app:{{ role_name }}apiapp_v2_0]
+paste.app_factory = {{ role_name }}.api.v2.router:APIRouter.factory
+
+[filter:osprofiler]
+paste.filter_factory = osprofiler.web:WsgiMiddleware.factory

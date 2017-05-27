@@ -1,0 +1,65 @@
+---
+# Copyright 2016, Rackspace US, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: Create TEMP run dir
+  file:
+    path: "/var/run/{% raw %}{{ {% endraw %}item.value.service_name{% raw %} }}{% endraw %}"
+    state: directory
+    owner: "{% raw %}{{ {% endraw %}{{ role_name }}_system_user_name{% raw %} }}{% endraw %}"
+    group: "{% raw %}{{ {% endraw %}{{ role_name }}_system_group_name{% raw %} }}{% endraw %}"
+    mode: "02755"
+  with_dict: "{% raw %}{{ {% endraw %}filtered_{{ role_name }}_services{% raw %} }}{% endraw %}"
+
+- name: Create TEMP lock dir
+  file:
+    path: "/var/lock/{% raw %}{{ {% endraw %}item.value.service_name{% raw %} }}{% endraw %}"
+    state: directory
+    owner: "{% raw %}{{ {% endraw %}{{ role_name }}_system_user_name{% raw %} }}{% endraw %}"
+    group: "{% raw %}{{ {% endraw %}{{ role_name }}_system_group_name{% raw %} }}{% endraw %}"
+    mode: "02755"
+  with_dict: "{% raw %}{{ {% endraw %}filtered_{{ role_name }}_services{% raw %} }}{% endraw %}"
+
+# TODO(mgariepy):
+# Remove this in Pike as it only needed to handle upgrades
+# from Newton->Newton and Newton->Ocata
+- name: Cleanup old tmpfiles.d entry
+  file:
+    path: "/etc/tmpfiles.d/{% raw %}{{ {% endraw %}item.value.service_name{% raw %} }}{% endraw %}.conf"
+    state: absent
+  with_dict: "{% raw %}{{ {% endraw %}filtered_{{ role_name }}_services{% raw %} }}{% endraw %}"
+
+- name: Create tmpfiles.d entry
+  template:
+    src: "{{ role_name }}-systemd-tmpfiles.j2"
+    dest: "/etc/tmpfiles.d/openstack-{% raw %}{{ {% endraw %}item.value.service_name{% raw %} }}{% endraw %}.conf"
+    mode: "0644"
+    owner: "root"
+    group: "root"
+  with_dict: "{% raw %}{{ {% endraw %}filtered_{{ role_name }}_services{% raw %} }}{% endraw %}"
+  notify:
+    - Restart {{ role_name }} services
+
+- name: Place the systemd init script
+  config_template:
+    src: "{{ role_name }}-systemd-init.j2"
+    dest: "/etc/systemd/system/{% raw %}{{ {% endraw %}item.value.service_name{% raw %} }}{% endraw %}.service"
+    mode: "0644"
+    owner: "root"
+    group: "root"
+    config_overrides: "{% raw %}{{ {% endraw %}item.value.init_config_overrides{% raw %} }}{% endraw %}"
+    config_type: "ini"
+  with_dict: "{% raw %}{{ {% endraw %}filtered_{{ role_name }}_services{% raw %} }}{% endraw %}"
+  notify:
+    - Restart {{ role_name }} services
